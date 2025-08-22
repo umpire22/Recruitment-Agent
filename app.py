@@ -2,8 +2,7 @@ import streamlit as st
 import pandas as pd
 import random
 import re
-from io import StringIO
-from pdfplumber import PDFPlumber
+import pdfplumber
 from docx import Document
 
 # --- PAGE CONFIG ---
@@ -50,9 +49,11 @@ QUAL_SCORE = {"O'LEVEL":5, "OND":10, "HND":15, "BSC":20, "MSC":25, "PHD":30}
 # --- HELPER FUNCTIONS ---
 def extract_text_from_pdf(file):
     text = ""
-    with PDFPlumber(file) as pdf:
+    with pdfplumber.open(file) as pdf:
         for page in pdf.pages:
-            text += page.extract_text() + " "
+            page_text = page.extract_text()
+            if page_text:
+                text += page_text + " "
     return text
 
 def extract_text_from_docx(file):
@@ -165,29 +166,32 @@ with st.container():
 
     if uploaded_files:
         for file in uploaded_files:
-            if file.type == "application/pdf":
-                text = extract_text_from_pdf(file)
-            else:
-                text = extract_text_from_docx(file)
+            try:
+                if file.type == "application/pdf":
+                    text = extract_text_from_pdf(file)
+                else:
+                    text = extract_text_from_docx(file)
 
-            skills, exp, qual = parse_candidate_info(text)
-            score, result = score_candidate(skills, exp, qual)
+                skills, exp, qual = parse_candidate_info(text)
+                score, result = score_candidate(skills, exp, qual)
 
-            st.markdown(f"**{file.name}**")
-            st.write(f"Skills: {skills}")
-            st.write(f"Experience: {exp} years")
-            st.write(f"Qualification: {qual}")
-            color = "green" if "Strong" in result else "orange" if "Average" in result else "red"
-            st.markdown(f"<p style='color:{color}; font-weight:bold;'>{result}</p>", unsafe_allow_html=True)
+                st.markdown(f"**{file.name}**")
+                st.write(f"Skills: {skills}")
+                st.write(f"Experience: {exp} years")
+                st.write(f"Qualification: {qual}")
+                color = "green" if "Strong" in result else "orange" if "Average" in result else "red"
+                st.markdown(f"<p style='color:{color}; font-weight:bold;'>{result}</p>", unsafe_allow_html=True)
 
-            st.session_state.history.append({
-                "Name": file.name,
-                "Skills": skills,
-                "Experience (Years)": exp,
-                "Qualification": qual,
-                "Score": score,
-                "Result": result
-            })
+                st.session_state.history.append({
+                    "Name": file.name,
+                    "Skills": skills,
+                    "Experience (Years)": exp,
+                    "Qualification": qual,
+                    "Score": score,
+                    "Result": result
+                })
+            except Exception as e:
+                st.error(f"Failed to read {file.name}: {e}")
     st.markdown("</div>", unsafe_allow_html=True)
 
 # --- HISTORY & TOP CANDIDATES ---
